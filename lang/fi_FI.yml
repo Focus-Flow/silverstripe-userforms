@@ -155,6 +155,8 @@ fi_FI:
         TEXTONSUBMIT: "Lähetä-painikkeen teksti: "
         NORESULTS: "Vastaavia tuloksia ei löytynyt."
         SUBMIT: "Lähetä"
+        CONFIGURATION: "Asetukset"
+        ADDEMAILRECIPIENT: "Lisää vastaanottaja"
     UserDefinedForm_EmailRecipient:
         PLURALNAME: "Lomakkeen vastaanottosähköpostit"
         SINGULARNAME: "Lomakkeen vastaanottosähköposti"
