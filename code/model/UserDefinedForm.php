@@ -128,9 +128,11 @@ class UserDefinedForm extends Page {
 		$filter->setThrowExceptionOnBadDataType(false);
 		$pagination->setThrowExceptionOnBadDataType(false);
 
+		// make sure a numeric not a empty string is checked against this int column for SQL server
+		$parentID = (!empty($this->ID)) ? $this->ID : 0;
 		// attach every column to the print view from 
 		$columns = SubmittedFormField::get()
-			->where("\"SubmittedForm\".\"ParentID\" = '$this->ID'")
+			->where("\"SubmittedForm\".\"ParentID\" = '$parentID'")
 			->leftJoin('SubmittedForm', '"SubmittedFormField"."ParentID" = "SubmittedForm"."ID"')
 			->map('Name', 'Title');
 
@@ -163,8 +165,9 @@ class UserDefinedForm extends Page {
 	 * @return void
 	 */
 	public function doPublish() {
+		$parentID = (!empty($this->ID)) ? $this->ID : 0;
 		// remove fields on the live table which could have been orphaned.
-		$live = Versioned::get_by_stage("EditableFormField", "Live", "\"EditableFormField\".\"ParentID\" = $this->ID");
+		$live = Versioned::get_by_stage("EditableFormField", "Live", "\"EditableFormField\".\"ParentID\" = $parentID");
 
 		if($live) {
 			foreach($live as $field) {
@@ -280,10 +283,10 @@ class UserDefinedForm extends Page {
 	 *
 	 * @return ArrayList
 	 */
-	public function FilteredEmailRecipients() {
+	public function FilteredEmailRecipients($data = null, $form = null) {
 		$recipients = new ArrayList($this->getComponents('EmailRecipients')->toArray());
 
-		$this->extend('updateFilteredEmailRecipients', $recipients);
+		$this->extend('updateFilteredEmailRecipients', $recipients, $data, $form);
 
 		return $recipients;
 	}
@@ -964,7 +967,7 @@ JS
 		);
 
 		// email users on submit.
-		if($this->FilteredEmailRecipients()) {
+		if($recipients = $this->FilteredEmailRecipients($data, $form)) {
 			$email = new UserDefinedForm_SubmittedFormEmail($submittedFields); 
 			
 			if($attachments){
@@ -979,7 +982,7 @@ JS
 				}
 			}
 
-			foreach($this->FilteredEmailRecipients() as $recipient) {
+			foreach($recipients as $recipient) {
 				$email->populateTemplate($recipient);
 				$email->populateTemplate($emailData);
 				$email->setFrom($recipient->EmailFrom);
