@@ -157,6 +157,8 @@ fi_FI:
         SUBMIT: "Lähetä"
         CONFIGURATION: "Asetukset"
         ADDEMAILRECIPIENT: "Lisää vastaanottaja"
+        CLEARBUTTON: "Tyhjennä"
+        TEXTONCLEAR: "Tyhjennä-painikkeen teksti:"
     UserDefinedForm_EmailRecipient:
         PLURALNAME: "Lomakkeen vastaanottosähköpostit"
         SINGULARNAME: "Lomakkeen vastaanottosähköposti"
