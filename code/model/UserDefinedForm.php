@@ -600,8 +600,10 @@ class UserDefinedForm_Controller extends Page_Controller {
 		
 		if($this->Fields()) {
 			foreach($this->Fields() as $field) {
-				$messages[$field->Name] = $field->getErrorMessage()->HTML();
-	
+				if (!in_array($field->ClassName, array('EditableEmailField', 'EditableNumericField'))) {
+					$messages[$field->Name] = $field->getErrorMessage()->HTML();
+				}
+
 				if($field->Required) {
 					$rules[$field->Name] = array_merge(array('required' => true), $field->getValidation());
 					$required->addRequiredField($field->Name);
@@ -976,12 +978,14 @@ JS
 			"Sender" => Member::currentUser(),
 			"Fields" => $submittedFields
 		);
-
+		
+		$this->extend('updateEmailData', $emailData, $attachments);
+		
 		// email users on submit.
 		if($recipients = $this->FilteredEmailRecipients($data, $form)) {
 			$email = new UserDefinedForm_SubmittedFormEmail($submittedFields); 
 			
-			if($attachments){
+			if($attachments) {
 				foreach($attachments as $file) {
 					if($file->ID != 0) {
 						$email->attachFile(
