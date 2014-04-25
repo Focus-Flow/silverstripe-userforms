@@ -888,13 +888,19 @@ JS
 		
 		foreach($this->Fields() as $field) {
 			$messages[$field->Name] = $field->getErrorMessage()->HTML();
-				
+			$formField = $field->getFormField();
+
 			if($field->Required && $field->CustomRules()->Count() == 0) {
-				if(	!isset($data[$field->Name]) ||
+				if(isset($data[$field->Name])) {
+					$formField->setValue($data[$field->Name]);
+				}
+
+				if(
+					!isset($data[$field->Name]) || 
 					!$data[$field->Name] ||
-					!$field->getFormField()->validate($this->validator)
-				){
-					$form->addErrorMessage($field->Name,$field->getErrorMessage()->HTML(),'bad');
+					!$formField->validate($form->getValidator())
+				) {
+					$form->addErrorMessage($field->Name, $field->getErrorMessage(), 'bad');
 				}
 			}
 		}
@@ -1054,6 +1060,15 @@ JS
 		// set a session variable from the security ID to stop people accessing the finished method directly
 		if (isset($data['SecurityID'])) {
 			Session::set('FormProcessed',$data['SecurityID']);
+		} else {
+			// if the form has had tokens disabled we still need to set FormProcessed
+			// to allow us to get through the finshed method
+			if (!$this->Form()->getSecurityToken()->isEnabled()) {
+				$randNum = rand(1, 1000);
+				$randHash = md5($randNum);
+				Session::set('FormProcessed',$randHash);
+				Session::set('FormProcessedNum',$randNum);
+			}
 		}
 		
 		return $this->redirect($this->Link() . 'finished' . $referrer);
@@ -1070,12 +1085,16 @@ JS
 		
 		$formProcessed = Session::get('FormProcessed');
 		if (!isset($formProcessed)) {
-				return $this->redirect($this->Link() . $referrer);
+			return $this->redirect($this->Link() . $referrer);
 		} else {
 			$securityID = Session::get('SecurityID');
 			// make sure the session matches the SecurityID and is not left over from another form
 			if ($formProcessed != $securityID) {
-				return $this->redirect($this->Link() . $referrer);
+				// they may have disabled tokens on the form
+				$securityID = md5(Session::get('FormProcessedNum'));
+				if ($formProcessed != $securityID) {
+					return $this->redirect($this->Link() . $referrer);
+				}
 			}
 		}
 		// remove the session variable as we do not want it to be re-used
