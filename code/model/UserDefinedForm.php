@@ -139,6 +139,7 @@ SQL;
 		$config->addComponent(new GridFieldPageCount('toolbar-header-right'));
 		$config->addComponent($pagination = new GridFieldPaginator(25));
 		$config->addComponent(new GridFieldDetailForm());
+		$config->addComponent($excelexport = new GridFieldExportToExcelButton());
 		$config->addComponent($export = new GridFieldExportButton());
 		$config->addComponent($print = new GridFieldPrintButton());
 
@@ -153,6 +154,9 @@ SQL;
 		// print configuration
 		$print->setPrintHasHeader(true);
 		$print->setPrintColumns($columns);
+
+		// excel export configuration
+		$excelexport->setExportColumns($columns);
 
 		// export configuration
 		$export->setCsvHasHeader(true);
