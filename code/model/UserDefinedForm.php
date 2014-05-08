@@ -59,9 +59,14 @@ class UserDefinedForm extends Page {
 	 */
 	public function getCMSFields() {
 		// call updateCMSFields after userforms 
-		SiteTree::disableCMSFieldsExtensions();
+		// The next line is commented out as suggested here:
+		// https://github.com/silverstripe/silverstripe-issues/10#issuecomment-26762041
+		// SiteTree::disableCMSFieldsExtensions();
 		$fields = parent::getCMSFields();
-		SiteTree::enableCMSFieldsExtensions();
+		// The next line is commented out as suggested here:
+		// https://github.com/silverstripe/silverstripe-issues/10#issuecomment-26762041
+		// SiteTree::enableCMSFieldsExtensions();
+
 		// define tabs
 		$fields->findOrMakeTab('Root.FormContent', _t('UserDefinedForm.FORM', 'Form'));
 		$fields->findOrMakeTab('Root.FormOptions', _t('UserDefinedForm.CONFIGURATION', 'Configuration'));
@@ -157,7 +162,9 @@ SQL;
 		$fields->addFieldToTab("Root.Submissions", $submissions);
 		$fields->addFieldToTab("Root.FormOptions", new CheckboxField('DisableSaveSubmissions',_t('UserDefinedForm.SAVESUBMISSIONS',"Disable Saving Submissions to Server")));
 
-		$this->extend('updateCMSFields', $fields);
+		// The next line is commented out as suggested here:
+		// https://github.com/silverstripe/silverstripe-issues/10#issuecomment-26762041
+		// $this->extend('updateCMSFields', $fields);
 		
 		return $fields;
 	}
