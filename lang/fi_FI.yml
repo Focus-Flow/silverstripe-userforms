@@ -123,6 +123,7 @@ fi_FI:
     SINGULARNAME: 'Lähetetty lomakekenttä'
   UserDefinedForm:
     ADDEMAILRECIPIENT: 'Lisää sähköpostin vastaanottaja'
+    CLEARBUTTON: Tyhjennä
     CONFIGURATION: Asetukset
     DESCRIPTION: 'Lisää kustomoitavan lomakkeen.'
     EMAILADDRESS: Sähköpostiosoite
