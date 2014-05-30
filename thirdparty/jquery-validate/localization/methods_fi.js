@@ -1,8 +1,16 @@
+(function( factory ) {
+	if ( typeof define === "function" && define.amd ) {
+		define( ["jquery", "../jquery.validate"], factory );
+	} else {
+		factory( jQuery );
+	}
+}(function( $ ) {
+
 /*
  * Localized default methods for the jQuery validation plugin.
  * Locale: FI
  */
-jQuery.extend(jQuery.validator.methods, {
+$.extend($.validator.methods, {
 	date: function(value, element) {
 		return this.optional(element) || /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(value);
 	},
@@ -10,3 +18,5 @@ jQuery.extend(jQuery.validator.methods, {
 		return this.optional(element) || /^-?(?:\d+)(?:,\d+)?$/.test(value);
 	}
 });
+
+}));
