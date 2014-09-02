@@ -26,7 +26,9 @@ class UserDefinedForm extends Page {
 		"ShowClearButton" => "Boolean",
 		'DisableSaveSubmissions' => 'Boolean',
 		'EnableLiveValidation' => 'Boolean',
-		'HideFieldLabels' => 'Boolean'
+		'HideFieldLabels' => 'Boolean',
+		'DisableAuthenicatedFinishAction' => 'Boolean',
+		'DisableCsrfSecurityToken' => 'Boolean'
 	);
 	
 	/**
@@ -142,6 +144,13 @@ SQL;
 		$config->addComponent($excelexport = new GridFieldExportToExcelButton());
 		$config->addComponent($export = new GridFieldExportButton());
 		$config->addComponent($print = new GridFieldPrintButton());
+		
+		/**
+		 * Support for {@link https://github.com/colymba/GridFieldBulkEditingTools}
+		 */
+		if(class_exists('GridFieldBulkManager')) {
+			$config->addComponent(new GridFieldBulkManager());
+		}
 
 		$sort->setThrowExceptionOnBadDataType(false);
 		$filter->setThrowExceptionOnBadDataType(false);
@@ -384,7 +393,9 @@ SQL;
 			new TextField("ClearButtonText", _t('UserDefinedForm.TEXTONCLEAR', 'Text on clear button:'), $clear),
 			new CheckboxField("ShowClearButton", _t('UserDefinedForm.SHOWCLEARFORM', 'Show Clear Form Button'), $this->ShowClearButton),
 			new CheckboxField("EnableLiveValidation", _t('UserDefinedForm.ENABLELIVEVALIDATION', 'Enable live validation')),
-			new CheckboxField("HideFieldLabels", _t('UserDefinedForm.HIDEFIELDLABELS', 'Hide field labels'))
+			new CheckboxField("HideFieldLabels", _t('UserDefinedForm.HIDEFIELDLABELS', 'Hide field labels')),
+			new CheckboxField('DisableCsrfSecurityToken', _t('UserDefinedForm.DISABLECSRFSECURITYTOKEN', 'Disable CSRF Token')),
+			new CheckboxField('DisableAuthenicatedFinishAction', _t('UserDefinedForm.DISABLEAUTHENICATEDFINISHACTION', 'Disable Authenication on finish action'))
 		);
 		
 		$this->extend('updateFormOptions', $options);
@@ -518,6 +529,10 @@ class UserDefinedForm_Controller extends Page_Controller {
 		if(is_array($data)) $form->loadDataFrom($data);
 		
 		$this->extend('updateForm', $form);
+
+		if($this->DisableCsrfSecurityToken) {
+			$form->disableSecurityToken();
+		}
 		
 		return $form;
 	}
@@ -839,7 +854,7 @@ JS
 			if(is_array( $value )) {
 				$result[] = "$key:" . $this->array2json($value);
 			} else {
-				$value = (is_bool($value)) ? $value : "\"$value\"";
+				$value = ( is_bool($value) || is_numeric($value) ) ? $value : "\"$value\"";
 				$result[] = "$key:$value";
 			}
 		}
@@ -946,6 +961,8 @@ JS
 				}
 			}
 			
+			$submittedField->extend('onPopulationFromField', $field);
+			
 			if(!$this->DisableSaveSubmissions) {
 				$submittedField->write();
 			}
@@ -981,8 +998,8 @@ JS
 				$email->populateTemplate($emailData);
 				$email->setFrom($recipient->EmailFrom);
 				$email->setBody($recipient->EmailBody);
-				$email->setSubject($recipient->EmailSubject);
 				$email->setTo($recipient->EmailAddress);
+				$email->setSubject($recipient->EmailSubject);
 				
 				if($recipient->EmailReplyTo) {
 					$email->setReplyTo($recipient->EmailReplyTo);
@@ -1005,13 +1022,22 @@ JS
 					}
 				}
 				
+				// check to see if there is a dynamic subject
+				if($recipient->SendEmailSubjectField()) {
+					$submittedFormField = $submittedFields->find('Name', $recipient->SendEmailSubjectField()->Name);
+
+					if($submittedFormField && trim($submittedFormField->Value)) {
+						$email->setSubject($submittedFormField->Value);
+					}
+				}
+
 				$this->extend('updateEmail', $email, $recipient, $emailData);
 
 				if($recipient->SendPlain) {
-					$body = strip_tags($recipient->EmailBody) . "\n ";
+					$body = strip_tags($recipient->EmailBody) . "\n";
 					if(isset($emailData['Fields']) && !$recipient->HideFormData) {
 						foreach($emailData['Fields'] as $Field) {
-							$body .= $Field->Title .' - '. $Field->Value .' \n';
+							$body .= $Field->Title .' - '. $Field->Value ." \n";
 						}
 					}
 
@@ -1024,27 +1050,36 @@ JS
 			}
 		}
 		
+		$submittedForm->extend('updateAfterProcess');
+
 		Session::clear("FormInfo.{$form->FormName()}.errors");
 		Session::clear("FormInfo.{$form->FormName()}.data");
 		
 		$referrer = (isset($data['Referrer'])) ? '?referrer=' . urlencode($data['Referrer']) : "";
 
 
-		// set a session variable from the security ID to stop people accessing the finished method directly
-		if (isset($data['SecurityID'])) {
-			Session::set('FormProcessed',$data['SecurityID']);
-		} else {
-			// if the form has had tokens disabled we still need to set FormProcessed
-			// to allow us to get through the finshed method
-			if (!$this->Form()->getSecurityToken()->isEnabled()) {
-				$randNum = rand(1, 1000);
-				$randHash = md5($randNum);
-				Session::set('FormProcessed',$randHash);
-				Session::set('FormProcessedNum',$randNum);
+		// set a session variable from the security ID to stop people accessing 
+		// the finished method directly.
+		if(!$this->DisableAuthenicatedFinishAction) {
+			if (isset($data['SecurityID'])) {
+				Session::set('FormProcessed',$data['SecurityID']);
+			} else {
+				// if the form has had tokens disabled we still need to set FormProcessed
+				// to allow us to get through the finshed method
+				if (!$this->Form()->getSecurityToken()->isEnabled()) {
+					$randNum = rand(1, 1000);
+					$randHash = md5($randNum);
+					Session::set('FormProcessed',$randHash);
+					Session::set('FormProcessedNum',$randNum);
+				}
 			}
 		}
 		
-		return $this->redirect($this->Link() . 'finished' . $referrer);
+		if(!$this->DisableSaveSubmissions) {
+			Session::set('userformssubmission'. $this->ID, $submittedForm->ID);
+		}
+		
+		return $this->redirect($this->Link('finished') . $referrer);
 	}
 
 	/**
@@ -1054,30 +1089,39 @@ JS
 	 * @return ViewableData
 	 */
 	public function finished() {
+		$submission = Session::get('userformssubmission'. $this->ID);
+
+		if($submission) {
+			$submission = SubmittedForm::get()->byId($submission);
+		}
+
 		$referrer = isset($_GET['referrer']) ? urldecode($_GET['referrer']) : null;
 		
-		$formProcessed = Session::get('FormProcessed');
-		if (!isset($formProcessed)) {
-			return $this->redirect($this->Link() . $referrer);
-		} else {
-			$securityID = Session::get('SecurityID');
-			// make sure the session matches the SecurityID and is not left over from another form
-			if ($formProcessed != $securityID) {
-				// they may have disabled tokens on the form
-				$securityID = md5(Session::get('FormProcessedNum'));
+		if(!$this->DisableAuthenicatedFinishAction) {
+			$formProcessed = Session::get('FormProcessed');
+
+			if (!isset($formProcessed)) {
+				return $this->redirect($this->Link() . $referrer);
+			} else {
+				$securityID = Session::get('SecurityID');
+				// make sure the session matches the SecurityID and is not left over from another form
 				if ($formProcessed != $securityID) {
-					return $this->redirect($this->Link() . $referrer);
+					// they may have disabled tokens on the form
+					$securityID = md5(Session::get('FormProcessedNum'));
+					if ($formProcessed != $securityID) {
+						return $this->redirect($this->Link() . $referrer);
+					}
 				}
 			}
+
+			Session::clear('FormProcessed');
 		}
-		// remove the session variable as we do not want it to be re-used
-		Session::clear('FormProcessed');
 
 		return $this->customise(array(
-			'Content' => $this->customise(
-				array(
-					'Link' => $referrer
-				))->renderWith('ReceivedFormSubmission'),
+			'Content' => $this->customise(array(
+				'Submission' => $submission,
+				'Link' => $referrer
+			))->renderWith('ReceivedFormSubmission'),
 			'Form' => '',
 		));
 	}
@@ -1104,7 +1148,8 @@ class UserDefinedForm_EmailRecipient extends DataObject {
 	private static $has_one = array(
 		'Form' => 'UserDefinedForm',
 		'SendEmailFromField' => 'EditableFormField',
-		'SendEmailToField' => 'EditableFormField'
+		'SendEmailToField' => 'EditableFormField',
+		'SendEmailSubjectField' => 'EditableFormField'
 	);
 	
 	private static $summary_fields = array();
@@ -1133,48 +1178,37 @@ class UserDefinedForm_EmailRecipient extends DataObject {
 		
 		if($this->Form()) {
 			$dropdowns = array();
-
-			$validEmailFields = DataObject::get("EditableEmailField", "\"ParentID\" = '" . (int)$this->FormID . "'");
-			$multiOptionFields = DataObject::get("EditableMultipleOptionField", "\"ParentID\" = '" . (int)$this->FormID . "'");
-			
 			// if they have email fields then we could send from it
-			if($validEmailFields) {
-				$fields->insertAfter($dropdowns[] = new DropdownField(
-					'SendEmailFromFieldID',
-					_t('UserDefinedForm.ORSELECTAFIELDTOUSEASFROM', '.. or select a field to use as reply to address'),
-					$validEmailFields->map('ID', 'Title')
-				), 'EmailReplyTo');
-			}
+			$validEmailFields = EditableEmailField::get()->filter('ParentID', (int)$this->FormID);
+			// for the subject, only one-line entry boxes make sense
+			$validSubjectFields = EditableTextField::get()->filter('ParentID', (int)$this->FormID)->filterByCallback(function($item, $list) { return (int)$item->getSetting('Rows') === 1; });
+			// predefined choices are also candidates
+			$multiOptionFields = EditableMultipleOptionField::get()->filter('ParentID', (int)$this->FormID);
 
-			// if they have multiple options
-			if($multiOptionFields || $validEmailFields) {
+			$fields->insertAfter($dropdowns[] = new DropdownField(
+				'SendEmailFromFieldID',
+				_t('UserDefinedForm.ORSELECTAFIELDTOUSEASFROM', '.. or select a field to use as reply to address'),
+				$validEmailFields->map('ID', 'Title')
+			), 'EmailReplyTo');
 
-				if($multiOptionFields && $validEmailFields) {
-					$multiOptionFields = $multiOptionFields->toArray();
-					$multiOptionFields = array_merge(
-						$multiOptionFields,
-						$validEmailFields->toArray()
-					);
+			$validEmailFields = new ArrayList($validEmailFields->toArray());
+			$validEmailFields->merge($multiOptionFields);
+			$validSubjectFields->merge($multiOptionFields);
 
-					$multiOptionFields = ArrayList::create($multiOptionFields);
-				}
-				else if(!$multiOptionFields) {
-					$multiOptionFields = $validEmailFields;	
-				}
-				
-				$multiOptionFields = $multiOptionFields->map('ID', 'Title');
-					$fields->insertAfter($dropdowns[] = new DropdownField(
-						'SendEmailToFieldID',
-						_t('UserDefinedForm.ORSELECTAFIELDTOUSEASTO', '.. or select a field to use as the to address'),
-					 $multiOptionFields
-				), 'EmailAddress');
-			}
+			$fields->insertAfter($dropdowns[] = new DropdownField(
+				'SendEmailToFieldID',
+				_t('UserDefinedForm.ORSELECTAFIELDTOUSEASTO', '.. or select a field to use as the to address'),
+				$validEmailFields->map('ID', 'Title')
+			), 'EmailAddress');
+			$fields->insertAfter($dropdowns[] = new DropdownField(
+				'SendEmailSubjectFieldID',
+				_t('UserDefinedForm.SELECTAFIELDTOSETSUBJECT', '.. or select a field to use as the subject'),
+				$validSubjectFields->map('ID', 'Title')
+			), 'EmailSubject');
 
-			if($dropdowns) {
-				foreach($dropdowns as $dropdown) {
-					$dropdown->setHasEmptyDefault(true);
-					$dropdown->setEmptyString(" ");
-				}
+			foreach($dropdowns as $dropdown) {
+				$dropdown->setHasEmptyDefault(true);
+				$dropdown->setEmptyString(" ");
 			}
 		}
 
