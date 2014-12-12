@@ -118,7 +118,7 @@ class UserFormsGridFieldFilterHeader extends GridFieldFilterHeader {
 					WHERE ( 
 						ParentID = SubmittedForm.ID AND
 						Name = '%s' AND 
-						Value LIKE '%s'
+						Value LIKE '%%%s%%'
 					) > 0",
 
 					Convert::raw2sql($filter['filter']),
