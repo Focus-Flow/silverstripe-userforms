@@ -713,6 +713,7 @@ class UserDefinedForm_Controller extends Page_Controller {
 							// is this field a special option field
 							$checkboxField = false;
 							$radioField = false;
+
 							if(in_array($formFieldWatch->ClassName, array('EditableCheckboxGroupField', 'EditableCheckbox'))) {
 								$action = "click";
 								$checkboxField = true;
@@ -720,23 +721,23 @@ class UserDefinedForm_Controller extends Page_Controller {
 							else if ($formFieldWatch->ClassName == "EditableRadioField") {
 								$radioField = true;
 							}
-							
+
 							// Escape the values.
 							$dependency['Value'] = str_replace('"', '\"', $dependency['Value']);
 
 							// and what should we evaluate
 							switch($dependency['ConditionOption']) {
 								case 'IsNotBlank':
-									$expression = ($checkboxField || $radioField) ? '$(this).attr("checked")' :'$(this).val() != ""';
+									$expression = ($checkboxField || $radioField) ? '$(this).prop("checked")' :'$(this).val() != ""';
 
 									break;
 								case 'IsBlank':
-									$expression = ($checkboxField || $radioField) ? '!($(this).attr("checked"))' : '$(this).val() == ""';
+									$expression = ($checkboxField || $radioField) ? '!($(this).prop("checked"))' : '$(this).val() == ""';
 									
 									break;
 								case 'HasValue':
 									if ($checkboxField) {
-										$expression = '$(this).attr("checked")';
+										$expression = '$(this).prop("checked")';
 									} else if ($radioField) {
 										// We cannot simply get the value of the radio group, we need to find the checked option first.
 										$expression = '$(this).parents(".field, .control-group").find("input:checked").val()=="'. $dependency['Value'] .'"';
@@ -763,7 +764,7 @@ class UserDefinedForm_Controller extends Page_Controller {
 									break;	
 								default: // ==HasNotValue
 									if ($checkboxField) {
-										$expression = '!$(this).attr("checked")';
+										$expression = '!$(this).prop("checked")';
 									} else if ($radioField) {
 										// We cannot simply get the value of the radio group, we need to find the checked option first.
 										$expression = '$(this).parents(".field, .control-group").find("input:checked").val()!="'. $dependency['Value'] .'"';
@@ -777,12 +778,13 @@ class UserDefinedForm_Controller extends Page_Controller {
 							if(!isset($watch[$fieldToWatch])) {
 								$watch[$fieldToWatch] = array();
 							}
-							
+
 							$watch[$fieldToWatch][] =  array(
 								'expression' => $expression,
 								'field_id' => $fieldId,
 								'view' => $view,
-								'opposite' => $opposite
+								'opposite' => $opposite,
+								'action' => $action
 							);
 
 							$watchLoad[$fieldToWatchOnLoad] = true;
@@ -796,6 +798,7 @@ class UserDefinedForm_Controller extends Page_Controller {
 		if($watch) {
 			foreach($watch as $key => $values) {
 				$logic = array();
+				$actions = array();
 
 				foreach($values as $rule) {
 					// Register conditional behaviour with an element, so it can be triggered from many places.
@@ -806,6 +809,8 @@ class UserDefinedForm_Controller extends Page_Controller {
 						$rule['view'], 
 						$rule['opposite']
 					);
+
+					$actions[$rule['action']] = $rule['action'];
 				}
 
 				$logic = implode("\n", $logic);
@@ -814,10 +819,11 @@ class UserDefinedForm_Controller extends Page_Controller {
 		$logic\n
 	}); \n
 });\n";
-
-				$rules .= $key.".$action(function() {
+				foreach($actions as $action) {
+					$rules .= $key.".$action(function() {
 	$(this).data('userformConditions').call(this);\n
 });\n";
+				}
 			}
 		}
 
@@ -1178,40 +1184,39 @@ class UserDefinedForm_EmailRecipient extends DataObject {
 			new TextareaField('EmailBody', _t('UserDefinedForm.EMAILBODY','Body'))
 		);
 		
-		if($this->Form()) {
-			$dropdowns = array();
-			// if they have email fields then we could send from it
-			$validEmailFields = EditableEmailField::get()->filter('ParentID', (int)$this->FormID);
-			// for the subject, only one-line entry boxes make sense
-			$validSubjectFields = EditableTextField::get()->filter('ParentID', (int)$this->FormID)->filterByCallback(function($item, $list) { return (int)$item->getSetting('Rows') === 1; });
-			// predefined choices are also candidates
-			$multiOptionFields = EditableMultipleOptionField::get()->filter('ParentID', (int)$this->FormID);
+		$formID = ($this->FormID != 0) ? $this->FormID : Session::get('CMSMain.currentPage');
+		$dropdowns = array();
+		// if they have email fields then we could send from it
+		$validEmailFields = EditableEmailField::get()->filter('ParentID', (int)$formID);
+		// for the subject, only one-line entry boxes make sense
+		$validSubjectFields = EditableTextField::get()->filter('ParentID', (int)$formID)->filterByCallback(function($item, $list) { return (int)$item->getSetting('Rows') === 1; });
+		// predefined choices are also candidates
+		$multiOptionFields = EditableMultipleOptionField::get()->filter('ParentID', (int)$formID);
 
-			$fields->insertAfter($dropdowns[] = new DropdownField(
-				'SendEmailFromFieldID',
-				_t('UserDefinedForm.ORSELECTAFIELDTOUSEASFROM', '.. or select a field to use as reply to address'),
-				$validEmailFields->map('ID', 'Title')
-			), 'EmailReplyTo');
+		$fields->insertAfter($dropdowns[] = new DropdownField(
+			'SendEmailFromFieldID',
+			_t('UserDefinedForm.ORSELECTAFIELDTOUSEASFROM', '.. or select a field to use as reply to address'),
+			$validEmailFields->map('ID', 'Title')
+		), 'EmailReplyTo');
 
-			$validEmailFields = new ArrayList($validEmailFields->toArray());
-			$validEmailFields->merge($multiOptionFields);
-			$validSubjectFields->merge($multiOptionFields);
+		$validEmailFields = new ArrayList($validEmailFields->toArray());
+		$validEmailFields->merge($multiOptionFields);
+		$validSubjectFields->merge($multiOptionFields);
 
-			$fields->insertAfter($dropdowns[] = new DropdownField(
-				'SendEmailToFieldID',
-				_t('UserDefinedForm.ORSELECTAFIELDTOUSEASTO', '.. or select a field to use as the to address'),
-				$validEmailFields->map('ID', 'Title')
-			), 'EmailAddress');
-			$fields->insertAfter($dropdowns[] = new DropdownField(
-				'SendEmailSubjectFieldID',
-				_t('UserDefinedForm.SELECTAFIELDTOSETSUBJECT', '.. or select a field to use as the subject'),
-				$validSubjectFields->map('ID', 'Title')
-			), 'EmailSubject');
+		$fields->insertAfter($dropdowns[] = new DropdownField(
+			'SendEmailToFieldID',
+			_t('UserDefinedForm.ORSELECTAFIELDTOUSEASTO', '.. or select a field to use as the to address'),
+			$validEmailFields->map('ID', 'Title')
+		), 'EmailAddress');
+		$fields->insertAfter($dropdowns[] = new DropdownField(
+			'SendEmailSubjectFieldID',
+			_t('UserDefinedForm.SELECTAFIELDTOSETSUBJECT', '.. or select a field to use as the subject'),
+			$validSubjectFields->map('ID', 'Title')
+		), 'EmailSubject');
 
-			foreach($dropdowns as $dropdown) {
-				$dropdown->setHasEmptyDefault(true);
-				$dropdown->setEmptyString(" ");
-			}
+		foreach($dropdowns as $dropdown) {
+			$dropdown->setHasEmptyDefault(true);
+			$dropdown->setEmptyString(" ");
 		}
 
 		$this->extend('updateCMSFields', $fields);
