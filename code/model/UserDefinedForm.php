@@ -158,9 +158,6 @@ SQL;
 				$config->addComponent(new GridFieldBulkManager());
 			}
 
-			// excel export configuration
-			$excelexport->setExportColumns($columns);
-
 			$sort->setThrowExceptionOnBadDataType(false);
 			$filter->setThrowExceptionOnBadDataType(false);
 			$pagination->setThrowExceptionOnBadDataType(false);
@@ -169,8 +166,10 @@ SQL;
 			$columns['Created'] = 'Created';
 			$filter->setColumns($columns);
 
-			// print configuration
+			// excel export configuration
+			$excelexport->setExportColumns($columns);
 
+			// print configuration
 			$print->setPrintHasHeader(true);
 			$print->setPrintColumns($columns);
 
