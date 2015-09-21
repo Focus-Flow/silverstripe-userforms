@@ -166,9 +166,6 @@ SQL;
 			$columns['Created'] = 'Created';
 			$filter->setColumns($columns);
 
-			// excel export configuration
-			$excelexport->setExportColumns($columns);
-
 			// print configuration
 			$print->setPrintHasHeader(true);
 			$print->setPrintColumns($columns);
@@ -176,6 +173,9 @@ SQL;
 			// export configuration
 			$export->setCsvHasHeader(true);
 			$export->setExportColumns($columns);
+
+			// excel export configuration
+			$excelexport->setExportColumns($columns);
 
 			$submissions->setConfig($config);
 			$fields->addFieldToTab('Root.Submissions', $submissions);
